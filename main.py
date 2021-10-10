@@ -1,4 +1,7 @@
 from src import Neuron, Layer, save_value_record_to_csv, save_input_data
+import numpy as np
+# from keras.datasets import mnist
+
 
 def test_run_each_neuron_v1():
   """
@@ -57,32 +60,56 @@ def test_run_each_neuron_v1():
 
 def test_run_layer_system_v2():
   """ 
-  init Layer
+  1. init Layer
   """
   layer1 = Layer("Input Layer")
-  layer2 = Layer("Middle Layer")
-  layer3 = Layer("Output Layer")
+  layer2 = Layer("Middle One Layer")
+  layer3 = Layer("Middle Two Layer")
+  layer4 = Layer("Output Layer")
   
-  layer1.populate_neurons(1000)
-  layer2.populate_neurons(10)
-  layer3.populate_neurons(20)
+  """
+  2. initialize neurons
+  """
+  layer1.populate_neurons(784)
+  layer2.populate_neurons(50)
+  layer3.populate_neurons(200)
+  layer4.populate_neurons(10)
   
-  layer1.set_target_neurons(layer2)
-  layer2.set_target_neurons(layer3)
+  """
+  3. connect neurons
+  """
+  layer1.set_target_neurons(layer2, target_selection="all")
+  layer2.set_target_neurons(layer3, target_selection="sparse")
+  layer3.set_target_neurons(layer4, target_selection="all")
   
   
   """
-  prepare input data
+  4. prepare input data
+  currently, 
+  vector u (t, 1)
+  
+  change this to take diffrent values 
+  vector u (t, m) 
+  
+  m: number of neurons in the layer
+  t: time steps
   """
-  a = 0.4
-  input_data = [0,0,a,a,0,0,a,0,a,a]*10
+  timesteps = 100
+  input_data_2 = np.random.rand(timesteps,784) # u (t, num_of_neurons)
+  # (train_X, train_y), (test_X, test_y) = mnist.load_data(path='import/mnist.npz') # train_X (60000, 28, 28)
+  # img_data = train_X.reshape(60000, 28**2) # (60000, 784)
+  # input_data_3 = img_data[0:100, :]
   
   """
-  fire
+  5. fire, insert data to neurons
+  time 0 to T
+  continually stimulate all the neurons
   """
-  layer1.update_neurons(values=input_data)
+  for t, values in enumerate(input_data_2): # complexity O(n^2)
+    layer1.update_neurons(t=t, values=values)
   
-  layer3.save_activity_record()
+  
+  layer4.save_activity_record_to_csv(timesteps)
   
   return
 

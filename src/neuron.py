@@ -1,6 +1,9 @@
 import pandas as pd
 import numpy as np
 
+RAND_MEAN = 0.2
+RAND_STD = 0.1
+
 class Neuron():
   """
   Neuron
@@ -12,16 +15,21 @@ class Neuron():
     """
     self.name = name
     self.value = 0.0 # initial value
-    self.value_record = [] # value history
+    self.value_record = [] # updated value history [[time, value], ...]
     self.threshold = 1.0 # fire threshold
-    self.targets = [] # (target Neuron class, weight) pair
+    self.targets = [] # [(target Neuron(), weight), ...] pair
+    self.last_time_record = [0, 0] # last pair of [time, value] for efficient value storing
     
+    self.rand_mean = 0.2
+    self.rand_std = 0.1 
+    self.random = np.random.normal
     return
     
     
   def init_targets(self, targets: list):
     """
     initialize target neurons
+    targets: [neuron: class, weight: float]
     """
     assert type(targets) == list
     
@@ -31,20 +39,35 @@ class Neuron():
   def update_value(self, stim: float, t: float):
     """
     accumulate value for the neuron
-    
+    save the value
+    update the time
     stim: float
     """
-    self.value += stim
-    self.value_record.append([t, self.value])
     
-    """fire"""
+    """
+    update current value of the neuron
+    """
+    self.value += stim
+    
+    """
+    update value history, save the last record for efficiency
+    """
+    last_time = self.last_time_record[0]
+    last_value = self.last_time_record[1]
+    if last_time < t:
+      self.value_record.append([last_time, last_value])
+      self.last_time_record = [t, self.value]
+    
+    """
+    fire (update target neurons)
+    """
     if self.value >= self.threshold:
       self.fire(t)
       
-      """reset value"""
-      rand_mean = 0.2
-      rand_std = 0.1 
-      self.value = np.random.normal(rand_mean, rand_std, size=(1))[0]
+      """
+      reset current value
+      """
+      self.value = np.random.normal(RAND_MEAN, RAND_STD, size=(1))[0]
       pass
       
     return
@@ -54,11 +77,15 @@ class Neuron():
     """
     send pulses to other neurons
     """
-    print(f"{self.name} fire")
+    # print(f"{self.name} fire")
     for target_tuple in self.targets:
       target_neuron, weight = target_tuple
       target_neuron.update_value(weight, t)
       pass
+    
+    """
+    TODO: add update weights algorithm
+    """
     
     return
   
@@ -85,51 +112,99 @@ class Layer():
   
   """
   2. set all the neurons in the next layer as target neurons for each neuron in the current layer
+  
+  TODO: instead of connecting all the neurons, add options to choose target neurons
   """
-  def set_target_neurons(self, target_layer):
+  def set_target_neurons(self, target_layer, target_selection="all"):
+    
     target_neurons = target_layer.neurons
     
-    """initialize weights for all the target neurons """
-    target_neurons_and_weights_pair = [] # this is the actual target list, contains a tuple of (neuron, weight)
-    for target_neuron in target_neurons:
-      weight = 0.1 # replace some random variables later on
-      target_neuron_weight_pair = (target_neuron, weight)
-      target_neurons_and_weights_pair.append(target_neuron_weight_pair)
+    """
+    set target neurons
+    currently, connect all the neurons (dense layer)
+    """
+    if target_selection == "all":
+      """
+      initialize weights for all the target neurons
+      """
+      target_neurons_and_weights_pair = [] # this is the actual target list, contains a tuple of (neuron, weight)
+      for target_neuron in target_neurons:
+        weight = np.random.normal(RAND_MEAN, RAND_STD, size=(1))[0] # replace some random variables later on
+        target_neuron_weight_pair = (target_neuron, weight)
+        target_neurons_and_weights_pair.append(target_neuron_weight_pair)
+      
+      """
+      set target neurons to each neuron in the layer
+      """
+      for neuron in self.neurons:
+        neuron.init_targets(target_neurons_and_weights_pair)
+        
+    elif target_selection == "sparse":
+      """
+      initialize weights for half the target neurons
+      """
+      target_neurons_and_weights_pair = [] # this is the actual target list, contains a tuple of (neuron, weight)
+      for i, target_neuron in enumerate(target_neurons):
+        if i % 2 == 0:
+          weight = np.random.normal(RAND_MEAN, RAND_STD, size=(1))[0] # replace some random variables later on
+          target_neuron_weight_pair = (target_neuron, weight)
+          target_neurons_and_weights_pair.append(target_neuron_weight_pair)
+      
+      for neuron in self.neurons:
+        neuron.init_targets(target_neurons_and_weights_pair)
+      pass
     
-    """set target neurons"""
-    for neuron in self.neurons:
-      neuron.init_targets(target_neurons_and_weights_pair)
+    
+    
+    else:
+      for neuron in self.neurons:
+        neuron.init_targets(target_neurons_and_weights_pair)
+      
     return
   
   """
   only for Input Layer
   input data and start firing all the neurons!
   """
-  def update_neurons(self, values=None):
+  def update_neurons(self, t=0, values=None):
     """
-    e.g. same stimuli 0.4 for 1000 timesteps
-    value = [0.4]*1000
-    """    
-    # if len(values) != len(self.neurons):
-    #   raise ValueError("")
+    values: vector (m, 1), m: number of neurons
+    [0.1, 0.2, 0, ...]
+    """
+    if t % 10 == 0:
+      print(f"timestep: {t}")
+      
+    if len(self.neurons) != len(values):
+      raise ValueError("the values length and the number of neurons has to be the same")
     
-    """
-    time 0 to T
-    continually stimulate all the neurons
-    """
-    for t, value in enumerate(values):
-      for neuron in self.neurons:
-        neuron.update_value(value, t)
+    for neuron, val in zip(self.neurons, values):
+      neuron.update_value(val, t)
     return
 
 
   """
   """
-  def save_activity_record(self):
+  def save_activity_record_to_csv(self, end_t):
     
+    all_neuron_record = []
     for neuron in self.neurons:
       each_neuron_record = neuron.value_record
-      pd.DataFrame(each_neuron_record).to_csv(f"/Users/takashimac/Documents/Python/Meta/export/layer/{neuron.name}.csv")
+      
+      """
+      insert missing timestep and value (as zero)
+      """
+      all_timesteps = {data[0]: data[1] for data in each_neuron_record} # {timesteps: value]
+      interpolated_record = []
+      for i in range(end_t):
+        if i not in all_timesteps.keys():
+          interpolated_record.append(0)
+        else:
+          interpolated_record.append(all_timesteps[i])
+      
+      all_neuron_record.append(interpolated_record)
+      
+      
+    pd.DataFrame(all_neuron_record).to_csv(f"/Users/takashimac/Documents/Python/Meta/export/layer/{self.name}.csv")
       
     return
     
