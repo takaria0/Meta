@@ -1,7 +1,8 @@
-from src import Neuron, Layer, save_value_record_to_csv, save_input_data
+from src import Neuron, Layer, save_value_record_to_csv, save_input_data, DataGenerator, save_object, Network
 import numpy as np
-# from keras.datasets import mnist
 
+from datetime import datetime
+# from keras.datasets import mnist
 
 def test_run_each_neuron_v1():
   """
@@ -59,28 +60,46 @@ def test_run_each_neuron_v1():
   return
 
 def test_run_layer_system_v2():
+  MEMO = "inhibit_neighbour_neurons"
+  NUM_OF_INPUT_NEURONS = 784
+  NUM_OF_OUTPUT_NEURONS = 10
+  TIMESTEPS = 50000
   """ 
   1. init Layer
   """
   layer1 = Layer("Input Layer")
-  layer2 = Layer("Middle One Layer")
-  layer3 = Layer("Middle Two Layer")
-  layer4 = Layer("Output Layer")
+  layer2 = Layer("Hidden One Layer")
+  layer3 = Layer("Output Layer")
+  
+  network_name = f"{datetime.today().strftime('%Y%m%d_%H%M%S')}_{TIMESTEPS}_{NUM_OF_INPUT_NEURONS}_{MEMO}_mnist_network"
+  mnist_network = Network(network_name)
+  mnist_network.layers = [layer1, layer2, layer3]
   
   """
   2. initialize neurons
   """
-  layer1.populate_neurons(784)
-  layer2.populate_neurons(50)
-  layer3.populate_neurons(200)
-  layer4.populate_neurons(10)
+  layer1.populate_neurons(NUM_OF_INPUT_NEURONS)
+  layer2.populate_neurons(100)
+  layer3.populate_neurons(NUM_OF_OUTPUT_NEURONS)
+  
+  
   
   """
   3. connect neurons
   """
+  # Forward
   layer1.set_target_neurons(layer2, target_selection="all")
-  layer2.set_target_neurons(layer3, target_selection="sparse")
-  layer3.set_target_neurons(layer4, target_selection="all")
+  layer2.set_target_neurons(layer3, target_selection="all")
+  
+  
+  # Backward (need computing power, nearly impossible, find another weights update rule) 
+  # maybe not always? connect backward during some time.
+  # layer5 = Layer("Backward Layer")
+  # layer5.populate_neurons(78)
+  # import sys; sys.setrecursionlimit(10**5)
+  # layer3.set_target_neurons(layer1, target_selection="sparse") # 
+  # layer4.set_target_neurons(layer5, target_selection="sparse") #
+  # layer5.set_target_neurons(layer1, target_selection="sparse")
   
   
   """
@@ -94,23 +113,25 @@ def test_run_layer_system_v2():
   m: number of neurons in the layer
   t: time steps
   """
-  timesteps = 100
-  input_data_2 = np.random.rand(timesteps,784) # u (t, num_of_neurons)
-  # (train_X, train_y), (test_X, test_y) = mnist.load_data(path='import/mnist.npz') # train_X (60000, 28, 28)
-  # img_data = train_X.reshape(60000, 28**2) # (60000, 784)
-  # input_data_3 = img_data[0:100, :]
+  data = DataGenerator()
+  input_data = data.mnist(TIMESTEPS) # u (t, num_of_neurons)
   
   """
   5. fire, insert data to neurons
   time 0 to T
   continually stimulate all the neurons
   """
-  for t, values in enumerate(input_data_2): # complexity O(n^2)
-    layer1.update_neurons(t=t, values=values)
+  mnist_network.learn(input_data)
   
+  """
+  6. save output neurons activity data
+  """
+  mnist_network.save_output_layer(TIMESTEPS, MEMO)
   
-  layer4.save_activity_record_to_csv(timesteps)
-  
+  """
+  7. save entire network
+  """
+  save_object(mnist_network, f"/Users/takashimac/Documents/Python/Meta/export/network/{mnist_network.name}/mnist_network_v1.pkl")
   return
 
 

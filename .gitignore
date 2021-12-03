@@ -2,3 +2,6 @@ env/
 __pycache__
 export/*
 import/*
+playground/sotsuron/
+.DS_Store
+*.pyc
